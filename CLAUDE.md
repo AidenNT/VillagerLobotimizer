@@ -1,20 +1,10 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
 VillagerLobotimizer is a Minecraft Paper plugin (Java 21) that improves server performance by disabling villager AI when they're trapped in trading halls. The plugin uses Paper's threading model and is Folia-compatible.
 
 ## Essential Commands
 
 ### Building
 ```bash
-# Build the plugin (first run takes 2-10 minutes)
 ./gradlew build
-
-# Shadow JAR is automatically built with build task
-# Output: build/libs/VillagerLobotimizer-<version>.jar
 ```
 
 ### Testing
@@ -27,18 +17,6 @@ VillagerLobotimizer is a Minecraft Paper plugin (Java 21) that improves server p
 # /lobotomy debug toggle - Enable/disable debug mode
 # /lobotomy wake - Restore AI to a villager
 # /lobotomy reload - Reload configuration
-```
-
-### Publishing (Maintainers Only)
-```bash
-# Publish to Hangar (requires HANGAR_API_KEY env var)
-./gradlew publishPluginPublicationToHangar
-
-# Publish to Modrinth (requires MODRINTH_TOKEN env var)
-./gradlew modrinth
-
-# Publish to both
-./gradlew publishAll
 ```
 
 ## Architecture
@@ -137,47 +115,3 @@ All config values are read in constructors (VillagerLobotomizer and LobotomizeSt
 - **Config Changes**: Always add defaults to `src/main/resources/config.yml` with comments
 - **New Commands**: Add to LobotomizeCommand and update permissions in `plugin.yml`
 - **New PDC Keys**: Use `new NamespacedKey(plugin, "keyName")` to avoid collisions
-
-### Testing Procedures
-1. Build with `./gradlew build` (may take 2-10 minutes on first run)
-2. Start server with `./gradlew runServer`
-3. Test commands: `/lobotomy info`, `/lobotomy debug toggle`
-4. Create test scenario: spawn villagers in a confined space
-5. Verify villagers become inactive (check logs if debug enabled)
-6. Break blocks around villagers and verify they become active again
-7. Test trading with inactive villagers to ensure it still works
-
-### Version Management
-- Plugin version is defined in `build.gradle.kts` as `version = "1.11.3"`
-- `plugin.yml` version is auto-replaced via resource filtering: `version: '${version}'`
-- When bumping version:
-  - Patch version for bug fixes and minor changes
-  - Minor version for new features
-  - Update `version` in `build.gradle.kts` only
-- Tagged commits (e.g., `v1.11.3`) trigger Release builds; untagged trigger Snapshot builds
-
-### Known Limitations
-- Debug teams (glowing villagers) don't work on Folia due to global scoreboard state
-- Sandboxed environments may fail builds due to `repo.papermc.io` network restrictions
-- Plugman compatibility: Commands break after reload (Brigadier limitation)
-- Villagers may remain lobotomized after plugin removal if removed without clean shutdown
-
-## Important Conventions
-
-### Shutdown Cleanup
-- `LobotomizeStorage.flush()` sets `shuttingDown` flag to prevent new task scheduling
-- Cancels all per-villager tasks before unloading
-- Restores villager awareness with fallback to EntityScheduler if direct access fails
-- `VillagerLobotomizer.onDisable()` calls flush() and cleans up debug teams
-
-### Folia-Specific Handling
-- Check `plugin.isFolia()` before using scoreboard teams
-- Use EntityScheduler for per-entity operations (auto-routes to correct region thread)
-- Use GlobalRegionScheduler for chunk processing
-- Avoid global state mutations
-
-### Async Operations
-- Update checks run on `Bukkit.getAsyncScheduler()` with 5-second timeout
-- Never touch entities, chunks, or world state from async tasks
-- Return to entity scheduler for any entity modifications
-- Always commit using conventional commits. If you need a refresher you can view the site here: https://www.conventionalcommits.org/en/v1.0.0/
