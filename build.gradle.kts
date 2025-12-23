@@ -1,9 +1,9 @@
 plugins {
     java
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.18"
-    id("xyz.jpenilla.run-paper") version "3.0.0-beta.1"
-    id("io.papermc.hangar-publish-plugin") version "0.1.2"
-    id("com.gradleup.shadow") version "9.0.0-beta13"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.19"
+    id("xyz.jpenilla.run-paper") version "3.0.+"
+    id("io.papermc.hangar-publish-plugin") version "0.1.+"
+    id("com.gradleup.shadow") version "9.3.+"
     id("com.modrinth.minotaur") version "2.+"
 }
 
@@ -31,7 +31,7 @@ repositories {
 dependencies {
     paperweight.paperDevBundle("1.21.6-R0.1-SNAPSHOT")
     implementation("net.kyori:adventure-text-serializer-plain:4.22.0")
-    implementation(group = "org.bstats", name = "bstats-bukkit", version = "3.1.0")
+    implementation("org.bstats:bstats-bukkit:3.1.0")
     implementation("org.yaml:snakeyaml:2.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
 }
@@ -49,7 +49,7 @@ java {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 
-    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible) {
         options.release.set(targetJavaVersion)
     }
 }
@@ -66,7 +66,7 @@ tasks {
 
     runServer {
         dependsOn(shadowJar)
-        minecraftVersion("1.21.10")
+        minecraftVersion("1.21.11")
     }
 
     build {
@@ -98,10 +98,10 @@ tasks {
 }
 
 // Planning on using API only available in 1.21.6 (and technically 1.21.5 but only the last like 10 builds)
-val supportedVersions = listOf("1.21.6-1.21.10")
+val supportedVersions = listOf("1.21.6-1.21.11")
 
 // Modrinth requires discrete game versions rather than a range
-val modrinthGameVersions = listOf("1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10")
+val modrinthGameVersions = listOf("1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11")
 
 hangarPublish {
     publications.register("plugin") {
