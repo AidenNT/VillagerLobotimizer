@@ -34,6 +34,7 @@ dependencies {
     implementation("org.bstats:bstats-bukkit:3.1.0")
     implementation("org.yaml:snakeyaml:2.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 val targetJavaVersion = 21
