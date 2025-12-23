@@ -108,6 +108,7 @@ public class LobotomizeStorage {
 
     private final VillagerLobotomizer plugin;
     private final NamespacedKey key;
+    private final NamespacedKey lobotomizedKey;
     private final Set<Villager> activeVillagers = Collections.newSetFromMap(new ConcurrentHashMap<>(128));
     private final Set<Villager> inactiveVillagers = Collections.newSetFromMap(new ConcurrentHashMap<>(128));
     // Used to track what chunks we need to trigger updates for
@@ -124,6 +125,7 @@ public class LobotomizeStorage {
     private final boolean lobotomizePassengers;
     private final boolean checkRoof;
     private final boolean silentLobotomizedVillagers;
+    private final boolean persistLobotomizedState;
     private Sound restockSound;
     private Sound levelUpSound;
     private final Logger logger;
@@ -142,6 +144,7 @@ public class LobotomizeStorage {
         this.lobotomizePassengers = plugin.getConfig().getBoolean("always-lobotomize-villagers-in-vehicles");
         this.checkRoof = plugin.getConfig().getBoolean("check-roof");
         this.silentLobotomizedVillagers = plugin.getConfig().getBoolean("silent-lobotomized-villagers");
+        this.persistLobotomizedState = plugin.getConfig().getBoolean("persist-lobotomized-state", true);
         String soundName = plugin.getConfig().getString("restock-sound", "");
         String levelUpSoundName = plugin.getConfig().getString("level-up-sound", "");
 
@@ -209,6 +212,7 @@ public class LobotomizeStorage {
         }
 
         this.key = new NamespacedKey(plugin, "lastRestock");
+        this.lobotomizedKey = new NamespacedKey(plugin, "isLobotomized");
         // Use Paper's GlobalRegionScheduler for chunk processing (doesn't access entities directly)
         this.chunkProcessingTask = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> this.processChunks(), 5L, 5L);
     }
@@ -226,13 +230,36 @@ public class LobotomizeStorage {
         if (this.shuttingDown || !this.plugin.isEnabled()) {
             return;
         }
-        
-        this.activeVillagers.add(villager);
-        this.scheduleVillagerTask(villager, this.checkInterval);
-        
-        if (this.plugin.isDebugging()) {
-            this.logger.info("[Debug] Tracked villager " + villager + " (" + villager.getUniqueId() + ") with per-entity scheduler");
+
+        // Check if this villager was previously lobotomized
+        boolean wasLobotomized = false;
+        if (this.persistLobotomizedState) {
+            PersistentDataContainer pdc = villager.getPersistentDataContainer();
+            wasLobotomized = pdc.has(this.lobotomizedKey, PersistentDataType.BYTE);
         }
+
+        if (wasLobotomized) {
+            // Immediately lobotomize the villager to prevent lag spike
+            villager.setAware(false);
+            if (this.silentLobotomizedVillagers) {
+                villager.setSilent(true);
+            }
+            this.inactiveVillagers.add(villager);
+
+            if (this.plugin.isDebugging()) {
+                this.logger.info("[Debug] Re-lobotomized villager " + villager + " (" + villager.getUniqueId() + ") on chunk load");
+            }
+        } else {
+            this.activeVillagers.add(villager);
+
+            if (this.plugin.isDebugging()) {
+                this.logger.info("[Debug] Tracked villager " + villager + " (" + villager.getUniqueId() + ") as active");
+            }
+        }
+
+        // Schedule per-villager task with appropriate interval
+        long interval = wasLobotomized ? this.inactiveCheckInterval : this.checkInterval;
+        this.scheduleVillagerTask(villager, interval);
     }
 
     public final void removeVillager(@NotNull Villager villager) {
@@ -267,6 +294,24 @@ public class LobotomizeStorage {
                 this.logger.info("[Debug] Untracked villager " + villager + " (" + villager.getUniqueId() + "), marked as active = " + active + ", cancelled scheduler");
             } else {
                 this.logger.info("[Debug] Attempted to untrack villager " + villager + " (" + villager.getUniqueId() + "), but it was not tracked");
+            }
+        }
+    }
+
+    /**
+     * Clears the persistent lobotomized marker from a villager.
+     * Used by the wake command to prevent re-lobotomization on chunk reload.
+     *
+     * @param villager The villager to clear the marker from
+     */
+    public void clearLobotomizedMarker(@NotNull Villager villager) {
+        if (this.persistLobotomizedState) {
+            PersistentDataContainer pdc = villager.getPersistentDataContainer();
+            if (pdc.has(this.lobotomizedKey, PersistentDataType.BYTE)) {
+                pdc.remove(this.lobotomizedKey);
+                if (this.plugin.isDebugging()) {
+                    this.logger.info("[Debug] Removed persistent lobotomized marker from " + villager.getUniqueId());
+                }
             }
         }
     }
@@ -311,6 +356,10 @@ public class LobotomizeStorage {
                 if (this.silentLobotomizedVillagers) {
                     villager.setSilent(false);
                 }
+                // Remove persistent lobotomized marker
+                if (this.persistLobotomizedState) {
+                    villager.getPersistentDataContainer().remove(this.lobotomizedKey);
+                }
             } catch (IllegalStateException e) {
                 // If we get a thread violation, try using entity scheduler as last resort
                 try {
@@ -318,6 +367,10 @@ public class LobotomizeStorage {
                         villager.setAware(true);
                         if (this.silentLobotomizedVillagers) {
                             villager.setSilent(false);
+                        }
+                        // Remove persistent lobotomized marker
+                        if (this.persistLobotomizedState) {
+                            villager.getPersistentDataContainer().remove(this.lobotomizedKey);
                         }
                     }, null);
                 } catch (Exception schedulerException) {
@@ -404,6 +457,13 @@ public class LobotomizeStorage {
                 if (this.silentLobotomizedVillagers) {
                     villager.setSilent(false);
                 }
+                // Remove persistent lobotomized marker
+                if (this.persistLobotomizedState) {
+                    villager.getPersistentDataContainer().remove(this.lobotomizedKey);
+                    if (this.plugin.isDebugging()) {
+                        this.logger.info("[Debug] Removed persistent lobotomized marker from " + villager.getUniqueId());
+                    }
+                }
                 this.activeVillagers.add(villager);
                 if (this.plugin.isDebugging()) {
                     this.logger.info("[Debug] Villager " + villager + " (" + villager.getUniqueId() + ") is now active");
@@ -423,6 +483,13 @@ public class LobotomizeStorage {
                 villager.setAware(false);
                 if (this.silentLobotomizedVillagers) {
                     villager.setSilent(true);
+                }
+                // Set persistent lobotomized marker
+                if (this.persistLobotomizedState) {
+                    villager.getPersistentDataContainer().set(this.lobotomizedKey, PersistentDataType.BYTE, (byte) 1);
+                    if (this.plugin.isDebugging()) {
+                        this.logger.info("[Debug] Set persistent lobotomized marker for " + villager.getUniqueId());
+                    }
                 }
                 this.inactiveVillagers.add(villager);
                 if (this.plugin.isDebugging()) {
