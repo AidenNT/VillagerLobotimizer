@@ -425,7 +425,7 @@ public class LobotomizeStorage {
     }
 
     private void refreshTrades(@NotNull Villager villager) {
-        if (!villager.getWorld().isDayTime()) {
+        if (villager.getWorld().getEnvironment() == World.Environment.NORMAL && !villager.getWorld().isDayTime()) {
             // It's night, do not refresh trades
             return;
         }
