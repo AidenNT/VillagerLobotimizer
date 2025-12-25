@@ -4,8 +4,10 @@ import com.google.gson.Gson;
 import dev.mja00.villagerLobotomizer.listeners.EntityListener;
 import dev.mja00.villagerLobotomizer.objects.Modrinth;
 import dev.mja00.villagerLobotomizer.utils.ConfigMigrator;
+import dev.mja00.villagerLobotomizer.utils.SentryContextProvider;
 import dev.mja00.villagerLobotomizer.utils.VersionUtils;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import io.sentry.Sentry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bstats.bukkit.Metrics;
@@ -45,6 +47,7 @@ public final class VillagerLobotomizer extends JavaPlugin {
     private final String activeVillagersTeamName = "lobotomy_active_villagers";
     private final String inactiveVillagersTeamName = "lobotomy_inactive_villagers";
     private boolean disableChunkVillagerUpdate;
+    private boolean sentryEnabled = false;
 
     @Override
     public void onEnable() {
@@ -61,6 +64,61 @@ public final class VillagerLobotomizer extends JavaPlugin {
         if (this.isFolia) {
             this.getLogger().info("Folia detected, using per-entity schedulers.");
         }
+
+        // Initialize Sentry if enabled
+        boolean enableSentry = this.getConfig().getBoolean("enable-sentry", true);
+        if (enableSentry) {
+            // Check if Sentry is already initialized (e.g., from a previous plugin reload)
+            if (Sentry.isEnabled()) {
+                this.sentryEnabled = true;
+                this.getLogger().info("Sentry is already initialized, skipping re-initialization");
+            } else {
+                // Detect if we're running in dev mode (runServer task)
+                boolean isDev = Boolean.getBoolean("villagerlobotimizer.dev");
+                String environment = isDev ? "development" : "production";
+
+                try {
+                    Sentry.init(options -> {
+                        options.setDsn("https://fdd79b92bf9f83a2f9699e844c080019@o1234338.ingest.us.sentry.io/4510592886702080");
+                        options.setEnvironment(environment);
+                        options.setRelease("villagerlobotimizer@" + this.getPluginMeta().getVersion());
+
+                        // Set context tags
+                        try {
+                            options.setTag("server.brand", SentryContextProvider.getServerBrand());
+                            options.setTag("server.version", SentryContextProvider.getServerVersion());
+                            options.setTag("minecraft.version", SentryContextProvider.getMinecraftVersion());
+                            options.setTag("bukkit.version", SentryContextProvider.getBukkitVersion());
+                            options.setTag("java.version", SentryContextProvider.getJavaVersion());
+                            options.setTag("folia.enabled", String.valueOf(this.isFolia));
+                        } catch (Exception e) {
+                            this.getLogger().log(java.util.logging.Level.WARNING, "Failed to set Sentry context tags: " + e.getMessage(), e);
+                        }
+
+                        // Enable source context and stack traces
+                        options.setAttachStacktrace(true); // Attach stack traces to all events
+                        options.setAttachThreads(true); // Attach thread information
+
+                        // Mark our package as in-app for better source highlighting
+                        options.addInAppInclude("dev.mja00.villagerLobotimizer");
+
+                        // Performance monitoring
+                        options.setTracesSampleRate(0.1); // 10% sampling
+
+                        // Privacy: disable PII
+                        options.setSendDefaultPii(false);
+                    });
+                    this.sentryEnabled = true;
+                    this.getLogger().info("Sentry error tracking enabled (environment: " + environment + ")");
+                } catch (Exception e) {
+                    this.getLogger().log(java.util.logging.Level.WARNING, "Failed to initialize Sentry: " + e.getMessage(), e);
+                    this.sentryEnabled = false;
+                }
+            }
+        } else {
+            this.getLogger().info("Sentry error tracking is disabled in config");
+        }
+
         this.storage = new LobotomizeStorage(this);
         this.getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         LobotomizeCommand lobotomizeCommand = new LobotomizeCommand(this);
@@ -208,6 +266,18 @@ public final class VillagerLobotomizer extends JavaPlugin {
                 clearTeam(inactiveTeam);
             } else {
                 this.getLogger().warning("Scoreboard manager unavailable during shutdown; debug teams cannot be cleaned up.");
+            }
+        }
+
+        // Flush and close Sentry
+        if (this.sentryEnabled) {
+            try {
+                Sentry.close();
+                if (this.isDebugging()) {
+                    this.getLogger().info("Sentry shutdown complete");
+                }
+            } catch (Exception e) {
+                this.getLogger().log(java.util.logging.Level.WARNING, "Error during Sentry shutdown: " + e.getMessage(), e);
             }
         }
     }
@@ -359,6 +429,10 @@ public final class VillagerLobotomizer extends JavaPlugin {
 
     public boolean isDisableChunkVillagerUpdate() {
         return this.disableChunkVillagerUpdate;
+    }
+
+    public boolean isSentryEnabled() {
+        return this.sentryEnabled;
     }
 
     /**

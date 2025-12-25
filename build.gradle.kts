@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "dev.mja00"
-version = "1.13.0"
+version = "1.13.1"
 
 repositories {
     mavenCentral()
@@ -32,6 +32,7 @@ dependencies {
     paperweight.paperDevBundle("1.21.6-R0.1-SNAPSHOT")
     implementation("net.kyori:adventure-text-serializer-plain:4.22.0")
     implementation("org.bstats:bstats-bukkit:3.1.0")
+    implementation("io.sentry:sentry:8.28.0")
     implementation("org.yaml:snakeyaml:2.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -68,6 +69,9 @@ tasks {
     runServer {
         dependsOn(shadowJar)
         minecraftVersion("1.21.11")
+
+        // Set system property to mark this as a development environment for Sentry
+        systemProperty("villagerlobotimizer.dev", "true")
     }
 
     build {
@@ -92,9 +96,17 @@ tasks {
         dependencies {
             include(dependency("org.bstats:bstats-bukkit"))
             include(dependency("org.bstats:bstats-base"))
+            include(dependency("io.sentry:sentry"))
         }
 
         relocate("org.bstats", "dev.mja00.villagerLobotomizer.bstats")
+        relocate("io.sentry", "dev.mja00.villagerLobotomizer.sentry")
+
+        // Optionally include sources for better Sentry source context
+        // Set -PincludeSources=true to enable (increases JAR size)
+        if (project.hasProperty("includeSources") && project.property("includeSources") == "true") {
+            from(sourceSets.main.get().allSource)
+        }
     }
 }
 
