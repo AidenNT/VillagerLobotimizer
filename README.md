@@ -84,6 +84,9 @@ ignore-non-solid-blocks: false
 #To check if there is a roof above a villager before lobotomizing, set this to true
 check-roof: true
 
+#To check if villagers are in trade block before lobotomizing, set this to false
+check-trade-block: false
+
 #Create teams for debugging purposes. This will create colored teams for inactive and active villagers. We use this to color their glowing effect.
 create-debug-teams: false
 
