@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "dev.mja00"
-version = "1.13.1"
+version = "1.13.2"
 
 repositories {
     mavenCentral()
@@ -62,6 +62,9 @@ tasks {
         inputs.properties(props)
         filteringCharset = "UTF-8"
         filesMatching("plugin.yml") {
+            expand(props)
+        }
+        filesMatching("paper-plugin.yml") {
             expand(props)
         }
     }

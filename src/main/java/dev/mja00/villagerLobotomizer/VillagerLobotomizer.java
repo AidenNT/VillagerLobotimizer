@@ -107,6 +107,9 @@ public final class VillagerLobotomizer extends JavaPlugin {
 
                         // Privacy: disable PII
                         options.setSendDefaultPii(false);
+
+                        // Disable uncaught exception handler
+                        options.setEnableUncaughtExceptionHandler(false);
                     });
                     this.sentryEnabled = true;
                     this.getLogger().info("Sentry error tracking enabled (environment: " + environment + ")");
