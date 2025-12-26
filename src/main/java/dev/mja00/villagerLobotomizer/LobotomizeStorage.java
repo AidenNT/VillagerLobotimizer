@@ -806,7 +806,7 @@ public class LobotomizeStorage {
         }
 
         // Check trade block
-        if (this.checkTradeBlock && villager.getVillagerExperience() > 0) {
+        if (this.checkTradeBlock && villager.getVillagerExperience() <= 0) {
             return true;
         }
 
